@@ -4,8 +4,10 @@ from datetime import datetime
 
 from models import db, Lead, Conversation, User
 from utils.permissions import has_organization_access
+from services.webhook_service import WebhookService
 
 lead_routes = Blueprint('lead', __name__, url_prefix='/api/leads')
+webhook_service = WebhookService()
 
 @lead_routes.route('/', methods=['POST'])
 def create_lead():
@@ -36,7 +38,25 @@ def create_lead():
     db.session.add(lead)
     db.session.commit()
     
-    # TODO: If organization has integrations enabled, trigger those
+    # Trigger webhook for lead creation
+    webhook_payload = {
+        'lead_id': lead.id,
+        'name': lead.name,
+        'email': lead.email,
+        'phone': lead.phone,
+        'conversation_id': lead.conversation_id,
+        'organization_id': lead.organization_id,
+        'custom_fields': lead.custom_fields,
+        'utm_source': lead.utm_source,
+        'utm_medium': lead.utm_medium,
+        'utm_campaign': lead.utm_campaign
+    }
+    
+    webhook_service.trigger_webhook_event(
+        organization_id=lead.organization_id,
+        event='lead.created',
+        payload=webhook_payload
+    )
     
     return jsonify({
         'lead_id': lead.id,
@@ -144,6 +164,9 @@ def update_lead(lead_id):
     if not has_organization_access(lead.organization_id):
         return jsonify({'error': 'Unauthorized'}), 403
     
+    # Save previous status for webhook
+    previous_status = lead.status
+    
     # Update fields
     if 'name' in data:
         lead.name = data['name']
@@ -157,6 +180,31 @@ def update_lead(lead_id):
         lead.custom_fields = data['custom_fields']
     
     db.session.commit()
+    
+    # Trigger webhook for lead update
+    webhook_payload = {
+        'lead_id': lead.id,
+        'name': lead.name,
+        'email': lead.email,
+        'phone': lead.phone,
+        'status': lead.status,
+        'previous_status': previous_status,
+        'organization_id': lead.organization_id
+    }
+    
+    webhook_service.trigger_webhook_event(
+        organization_id=lead.organization_id,
+        event='lead.updated',
+        payload=webhook_payload
+    )
+    
+    # If status changed, trigger status update webhook
+    if 'status' in data and previous_status != lead.status:
+        webhook_service.trigger_webhook_event(
+            organization_id=lead.organization_id,
+            event='lead.status_changed',
+            payload=webhook_payload
+        )
     
     return jsonify({
         'id': lead.id,

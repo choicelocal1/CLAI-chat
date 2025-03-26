@@ -2,8 +2,9 @@ import json
 import time
 from datetime import datetime
 
-from models import db, Conversation, Message, ConversationMetrics
+from models import db, Conversation, Message, ConversationMetrics, ChatBot, KnowledgeBase
 from .llm_service import LLMService
+from .knowledge_service import KnowledgeService
 
 class ConversationService:
     def __init__(self, chatbot, organization_id, visitor_id=None):
@@ -14,6 +15,7 @@ class ConversationService:
         self.organization_id = organization_id
         self.visitor_id = visitor_id
         self.llm_service = LLMService()
+        self.knowledge_service = KnowledgeService()
     
     def start_conversation(self, utm_params=None, referrer=None):
         """
@@ -59,29 +61,39 @@ class ConversationService:
         # Get conversation history
         history = self._get_conversation_history(conversation_id)
         
-        # Generate bot response
-        system_template = f"""
-        You are a helpful assistant for {self.chatbot.name}.
+        # Check knowledge base first
+        kb_response = self._check_knowledge_base(message_content)
         
-        DO SAY:
-        {self.chatbot.allowed_responses}
-        
-        DO NOT SAY:
-        {self.chatbot.forbidden_responses}
-        """
-        
-        human_template = "{message}"
-        
-        prompt = self.llm_service.create_prompt_template(system_template, human_template)
-        response = self.llm_service.get_chat_response(prompt, message=message_content)
+        if kb_response:
+            response_content = kb_response
+            model_used = "knowledge_base"
+        else:
+            # Generate bot response using LLM
+            system_template = f"""
+            You are a helpful assistant for {self.chatbot.name}.
+            
+            DO SAY:
+            {self.chatbot.allowed_responses}
+            
+            DO NOT SAY:
+            {self.chatbot.forbidden_responses}
+            """
+            
+            human_template = "{message}"
+            
+            prompt = self.llm_service.create_prompt_template(system_template, human_template)
+            response = self.llm_service.get_chat_response(prompt, message=message_content)
+            
+            response_content = response['content']
+            model_used = response['model']
         
         # Save bot response
         bot_message = Message(
             conversation_id=conversation_id,
             sender_type='bot',
-            content=response['content'],
-            token_count=len(response['content'].split()) * 1.3,  # Rough estimate
-            llm_model_used=response['model']
+            content=response_content,
+            token_count=len(response_content.split()) * 1.3,  # Rough estimate
+            llm_model_used=model_used
         )
         db.session.add(bot_message)
         
@@ -94,6 +106,31 @@ class ConversationService:
             'message_id': bot_message.id,
             'content': bot_message.content
         }
+    
+    def _check_knowledge_base(self, query):
+        """
+        Check if the query can be answered from the knowledge base
+        """
+        # Get knowledge bases for this chatbot
+        knowledge_bases = KnowledgeBase.query.filter_by(chatbot_id=self.chatbot.id).all()
+        
+        if not knowledge_bases:
+            return None
+        
+        # Search all knowledge bases for this chatbot
+        for kb in knowledge_bases:
+            results = self.knowledge_service.search_knowledge_base(
+                knowledge_base_id=kb.id,
+                query=query,
+                threshold=0.8  # Higher threshold for more confident matches
+            )
+            
+            if results:
+                # Use the highest similarity match
+                best_match = results[0]
+                return best_match['answer']
+        
+        return None
     
     def end_conversation(self, conversation_id):
         """

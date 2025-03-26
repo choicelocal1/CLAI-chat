@@ -8,6 +8,8 @@ from .conversation import conversation_routes
 from .lead import lead_routes
 from .analytics import analytics_routes
 from .widget import widget_routes
+from .knowledge import knowledge_routes
+from .webhook import webhook_routes
 
 def register_routes(app):
     """Register all blueprint routes with the app."""
@@ -19,3 +21,5 @@ def register_routes(app):
     app.register_blueprint(lead_routes)
     app.register_blueprint(analytics_routes)
     app.register_blueprint(widget_routes)
+    app.register_blueprint(knowledge_routes)
+    app.register_blueprint(webhook_routes)

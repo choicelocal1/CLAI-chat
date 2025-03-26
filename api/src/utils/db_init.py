@@ -1,10 +1,11 @@
 from models import db, Role, User, Organization
 from werkzeug.security import generate_password_hash
+from .sample_data import load_sample_data
 
 def init_db(app):
     """Initialize database with required initial data"""
     with app.app_context():
-        # Create tables if they don't exist
+        # Create tables
         db.create_all()
         
         # Create roles if they don't exist
@@ -14,16 +15,13 @@ def init_db(app):
                 role = Role(name=role_name)
                 db.session.add(role)
         
-        # Commit roles to get IDs
-        db.session.commit()
-        
         # Create admin user if it doesn't exist
         admin_email = 'admin@clai-chat.com'
         if not User.query.filter_by(email=admin_email).first():
             admin_role = Role.query.filter_by(name='admin').first()
             admin = User(
                 email=admin_email,
-                password_hash=generate_password_hash('admin123'),  # Change in production
+                password_hash=generate_password_hash('admin123'),
                 name='Admin User',
                 role_id=admin_role.id,
                 active=True
@@ -43,5 +41,8 @@ def init_db(app):
             db.session.commit()
             
             print("Created admin user and default organization")
+        
+        # Load sample data for demo
+        load_sample_data(app)
         
         print("Database initialized")

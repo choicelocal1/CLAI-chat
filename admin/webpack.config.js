@@ -1,6 +1,5 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-
 module.exports = {
   entry: './src/index.js',
   output: {
@@ -51,8 +50,13 @@ module.exports = {
     port: 3000,
     hot: true,
     open: true,
-    proxy: {
-      '/api': 'http://localhost:5000'
-    }
+    proxy: [
+      {
+        context: ['/api'],
+        target: 'http://localhost:5000',
+        secure: false,
+        changeOrigin: true
+      }
+    ]
   }
 };

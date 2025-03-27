@@ -1,35 +1,34 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
-from flask_migrate import Migrate
+import os
 
-from config.config import Config
-from models.db import db
-from routes import register_routes
-from services.socket_service import socketio
+app = Flask(__name__)
 
-def create_app(config_class=Config):
-    app = Flask(__name__)
-    app.config.from_object(config_class)
-    
-    # Initialize extensions
-    db.init_app(app)
-    jwt = JWTManager(app)
-    migrate = Migrate(app, db)
-    CORS(app)
-    socketio.init_app(app, cors_allowed_origins="*")
-    
-    # Register routes
-    register_routes(app)
-    
-    # Health check route
-    @app.route('/health')
-    def health_check():
-        return {'status': 'healthy'}
-    
-    return app
+# Configuration directly in app.py for simplicity
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@db:5432/clai_chat')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-app = create_app()
+# Apply CORS
+CORS(app)
+
+# Simple socketio mock
+class MockSocketIO:
+    def __init__(self):
+        pass
+    
+    def run(self, app, host='0.0.0.0', port=5000, debug=False):
+        app.run(host=host, port=port, debug=debug)
+
+socketio = MockSocketIO()
+
+@app.route('/')
+def index():
+    return jsonify({"message": "Welcome to CLAI Chat API"})
+
+@app.route('/health')
+def health_check():
+    return jsonify({"status": "healthy"})
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000)

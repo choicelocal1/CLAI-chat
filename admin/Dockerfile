@@ -1,8 +1,7 @@
-FROM node:16-alpine
+FROM node:14-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm config set legacy-peer-deps true
-RUN npm install
+COPY package*.json .npmrc ./
+RUN npm install --legacy-peer-deps
 COPY . .
 EXPOSE 3000
 CMD ["npm", "start"]

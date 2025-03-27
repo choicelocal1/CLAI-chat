@@ -1,40 +1,20 @@
-version: '3.8'
+FROM python:3.9-slim
 
-services:
-  api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    environment:
-      - FLASK_APP=app.py
-      - FLASK_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/clai_chat
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=local-dev-secret
-      - JWT_SECRET_KEY=local-dev-jwt-secret
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    volumes:
-      - ./api/src:/app
-    depends_on:
-      - db
-      - redis
+WORKDIR /app
 
-  db:
-    image: postgres:13
-    environment:
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=clai_chat
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-  redis:
-    image: redis:6
-    ports:
-      - "6379:6379"
+# Copy application code
+COPY src/ /app/
 
-volumes:
-  postgres_data:
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV FLASK_APP=app.py
+
+# Expose the port
+EXPOSE 5000
+
+# Command to run the application
+CMD ["python", "run.py"]
